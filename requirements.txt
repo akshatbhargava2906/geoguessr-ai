@@ -1,0 +1,38 @@
+# Core ML framework
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Pretrained model zoo
+timm>=0.9.0
+
+# Geographic utilities
+h3>=3.7.6
+
+# Image processing
+Pillow>=10.0.0
+albumentations>=1.3.0
+
+# Data handling
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Visualization
+matplotlib>=3.7.0
+folium>=0.14.0
+
+# Demo UI
+gradio>=4.0.0
+
+# HTTP requests (Mapillary API)
+requests>=2.31.0
+
+# Experiment tracking (optional)
+wandb>=0.15.0
+
+# Utilities
+tqdm>=4.65.0
+opencv-python-headless>=4.8.0
+
+# Geospatial
+geopy>=2.3.0

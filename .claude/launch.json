@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gradio-demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app/demo.py", "--port", "7860"],
+      "port": 7860
+    },
+    {
+      "name": "collect-synthetic",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["src/data/collect.py", "--synthetic", "--max_images", "1000"],
+      "port": 0
+    },
+    {
+      "name": "train",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["src/training/train.py"],
+      "port": 0
+    }
+  ]
+}
