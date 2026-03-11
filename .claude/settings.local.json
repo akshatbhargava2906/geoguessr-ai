@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python test_smoke.py)",
       "Bash(python -X utf8 test_smoke.py)",
-      "Bash(python -X utf8 -c \"import h3; print\\(h3.__version__\\); print\\(dir\\(h3\\)\\)\")"
+      "Bash(python -X utf8 -c \"import h3; print\\(h3.__version__\\); print\\(dir\\(h3\\)\\)\")",
+      "Bash(python src/data/collect.py --help)"
     ]
   }
 }

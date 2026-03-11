@@ -56,7 +56,11 @@ def rate_limited_get(url: str, params: dict, token: str, retries: int = 3) -> Op
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            if response.status_code == 429:
+            if response.status_code in (401, 403):
+                print(f"Authentication error ({response.status_code}): invalid or missing Mapillary token.")
+                print("Make sure --token is a valid Mapillary API v4 access token.")
+                raise SystemExit(1)
+            elif response.status_code == 429:
                 # Rate limited — back off longer
                 wait = 60 * (attempt + 1)
                 print(f"Rate limited. Waiting {wait}s before retry {attempt + 1}/{retries}...")
@@ -102,12 +106,15 @@ def fetch_images_in_bbox(
     max_lng: float,
     token: str,
     limit: int = 100,
+    max_per_cell: int = 500,
 ) -> list[dict]:
     """
     Queries Mapillary API v4 for images within a bounding box.
 
     The fields parameter controls what metadata we get back.
     We request thumb_256_url for bandwidth efficiency.
+    Follows pagination cursors up to max_per_cell images so dense
+    urban cells contribute more than a single page of 100.
     """
     bbox_str = f"{min_lng},{min_lat},{max_lng},{max_lat}"
     params = {
@@ -115,10 +122,21 @@ def fetch_images_in_bbox(
         "bbox": bbox_str,
         "limit": limit,
     }
-    data = rate_limited_get(f"{MAPILLARY_BASE_URL}/images", params, token)
-    if data is None or "data" not in data:
-        return []
-    return data["data"]
+    all_images: list[dict] = []
+    url = f"{MAPILLARY_BASE_URL}/images"
+    next_params = params
+
+    while url and len(all_images) < max_per_cell:
+        data = rate_limited_get(url, next_params, token)
+        if data is None or "data" not in data:
+            break
+        all_images.extend(data["data"])
+        # Follow pagination cursor; next URL already contains all query params
+        next_url = data.get("paging", {}).get("next")
+        url = next_url
+        next_params = {}  # params are embedded in the next URL
+
+    return all_images
 
 
 def download_image(url: str, save_path: Path) -> bool:
@@ -160,61 +178,60 @@ def collect_from_mapillary(
 
     # Open CSV in append mode so we can resume interrupted runs
     csv_exists = metadata_path.exists()
-    csv_file = open(metadata_path, "a", newline="", encoding="utf-8")
-    writer = csv.DictWriter(csv_file, fieldnames=["image_id", "lat", "lng", "filepath"])
-    if not csv_exists:
-        writer.writeheader()
-
     grid_cells = list(grid_sample_bbox(min_lat, min_lng, max_lat, max_lng, grid_steps=10))
     random.shuffle(grid_cells)  # Shuffle for diversity when stopping early
 
-    with tqdm(total=max_images, desc="Collecting images") as pbar:
-        for cell_bbox in grid_cells:
-            if collected >= max_images:
-                break
+    with open(metadata_path, "a", newline="", encoding="utf-8") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=["image_id", "lat", "lng", "filepath"])
+        if not csv_exists:
+            writer.writeheader()
 
-            images = fetch_images_in_bbox(*cell_bbox, token=token, limit=100)
-
-            for img_meta in images:
+        with tqdm(total=max_images, desc="Collecting images") as pbar:
+            for cell_bbox in grid_cells:
                 if collected >= max_images:
                     break
 
-                img_id = img_meta.get("id")
-                if img_id in seen_ids:
-                    continue
-                seen_ids.add(img_id)
+                images = fetch_images_in_bbox(*cell_bbox, token=token, limit=100)
 
-                # Extract coordinates from GeoJSON geometry
-                geometry = img_meta.get("geometry", {})
-                if geometry.get("type") != "Point":
-                    continue
-                lng, lat = geometry["coordinates"]  # GeoJSON is [lng, lat]
+                for img_meta in images:
+                    if collected >= max_images:
+                        break
 
-                thumb_url = img_meta.get("thumb_256_url")
-                if not thumb_url:
-                    continue
-
-                save_path = output_dir / f"{img_id}.jpg"
-                if save_path.exists():
-                    # Resume: skip already downloaded images
+                    img_id = img_meta.get("id")
+                    if img_id in seen_ids:
+                        continue
                     seen_ids.add(img_id)
-                    collected += 1
-                    pbar.update(1)
-                    continue
 
-                success = download_image(thumb_url, save_path)
-                if success:
-                    writer.writerow({
-                        "image_id": img_id,
-                        "lat": lat,
-                        "lng": lng,
-                        "filepath": str(save_path.relative_to(PROJECT_ROOT)),
-                    })
-                    csv_file.flush()
-                    collected += 1
-                    pbar.update(1)
+                    # Extract coordinates from GeoJSON geometry
+                    geometry = img_meta.get("geometry", {})
+                    if geometry.get("type") != "Point":
+                        continue
+                    lng, lat = geometry["coordinates"]  # GeoJSON is [lng, lat]
 
-    csv_file.close()
+                    thumb_url = img_meta.get("thumb_256_url")
+                    if not thumb_url:
+                        continue
+
+                    save_path = output_dir / f"{img_id}.jpg"
+                    if save_path.exists():
+                        # Resume: skip already downloaded images
+                        seen_ids.add(img_id)
+                        collected += 1
+                        pbar.update(1)
+                        continue
+
+                    success = download_image(thumb_url, save_path)
+                    if success:
+                        writer.writerow({
+                            "image_id": img_id,
+                            "lat": lat,
+                            "lng": lng,
+                            "filepath": str(save_path.relative_to(PROJECT_ROOT)),
+                        })
+                        csv_file.flush()
+                        collected += 1
+                        pbar.update(1)
+
     return collected
 
 
