@@ -116,9 +116,17 @@ def split_dataset(
     df_strat = df[df["h3_cell"].isin(stratifiable)]
     df_no_strat = df[~df["h3_cell"].isin(stratifiable)]
 
-    if len(df_strat) > 0:
+    num_classes = df_strat["h3_cell"].nunique() if len(df_strat) > 0 else 0
+    test_size = 1 - train_ratio - val_ratio
+    can_stratify = (
+        len(df_strat) > 0
+        and int(len(df_strat) * test_size) >= num_classes
+        and int(len(df_strat) * test_size * (train_ratio / (train_ratio + val_ratio))) >= num_classes
+    )
+
+    if can_stratify:
         train_val, test = train_test_split(
-            df_strat, test_size=(1 - train_ratio - val_ratio),
+            df_strat, test_size=test_size,
             stratify=df_strat["h3_cell"], random_state=42
         )
         relative_val = val_ratio / (train_ratio + val_ratio)
@@ -127,8 +135,8 @@ def split_dataset(
             stratify=train_val["h3_cell"], random_state=42
         )
     else:
-        train_val, test = train_test_split(df, test_size=0.1, random_state=42)
-        train, val = train_test_split(train_val, test_size=0.111, random_state=42)
+        train_val, test = train_test_split(df, test_size=max(1, int(len(df) * test_size)), random_state=42)
+        train, val = train_test_split(train_val, test_size=max(1, int(len(train_val) * val_ratio / (train_ratio + val_ratio))), random_state=42)
 
     # Append non-stratifiable rows to train only
     if len(df_no_strat) > 0:

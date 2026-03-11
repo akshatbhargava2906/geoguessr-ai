@@ -283,7 +283,7 @@ def collect_synthetic(
                 "image_id": img_id,
                 "lat": lat,
                 "lng": lng,
-                "filepath": str(save_path.relative_to(PROJECT_ROOT)),
+                "filepath": str(save_path.relative_to(PROJECT_ROOT) if save_path.is_relative_to(PROJECT_ROOT) else save_path),
             })
 
     print(f"Generated {max_images} synthetic images in {output_dir}")

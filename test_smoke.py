@@ -40,7 +40,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ── Test constants ─────────────────────────────────────────────────────────────
 N_IMAGES = 100          # Enough to form a few H3 cells after filtering
 MIN_IMAGES_PER_CELL = 3  # Very low threshold so smoke test doesn't filter everything
-H3_RESOLUTION = 2        # Very coarse (122 cells globally) → guaranteed overlap
+H3_RESOLUTION = 0        # Very coarse (122 cells globally) → guaranteed overlap
 
 
 # ── Colorful terminal output ────────────────────────────────────────────────────
@@ -330,6 +330,7 @@ def run_smoke_tests(n_images: int = N_IMAGES, keep_data: bool = False) -> bool:
                 "model_state_dict": model.state_dict(),
                 "epoch": 1,
                 "num_classes": num_classes,
+                "backbone_name": "efficientnet_b0",
             }, ckpt_path)
 
             print(pass_msg("2-epoch training run completed, checkpoint saved"))
@@ -434,7 +435,7 @@ def run_smoke_tests(n_images: int = N_IMAGES, keep_data: bool = False) -> bool:
             )
 
             assert map_output.exists(), "Map HTML file not created"
-            content = map_output.read_text()
+            content = map_output.read_text(encoding="utf-8")
             assert "folium" in content or "leaflet" in content, "Map doesn't contain leaflet/folium JS"
 
             print(pass_msg(f"Map saved ({map_output.stat().st_size:,} bytes)"))

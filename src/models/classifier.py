@@ -183,6 +183,16 @@ def build_model(
         print(f"Loading checkpoint from {checkpoint_path}...")
         checkpoint = torch.load(checkpoint_path, map_location=device)
 
+        # If the checkpoint stores the backbone name, rebuild with the correct architecture
+        if isinstance(checkpoint, dict) and "backbone_name" in checkpoint:
+            ckpt_backbone = checkpoint["backbone_name"]
+            if ckpt_backbone != backbone_name:
+                model = GeoClassifier(
+                    num_cells=num_cells,
+                    backbone_name=ckpt_backbone,
+                    pretrained=False,
+                )
+
         # Support both raw state_dict and wrapped checkpoint dicts
         state_dict = checkpoint.get("model_state_dict", checkpoint)
         model.load_state_dict(state_dict)
